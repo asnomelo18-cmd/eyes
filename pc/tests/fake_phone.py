@@ -134,5 +134,10 @@ class FakePhone:
                     return
                 if self.media_handler:
                     await self.media_handler(msg, send)
+        except Exception:  # comme le vrai téléphone : une erreur d'envoi termine la session
+            pass
         finally:
             self.connections.remove(ws)
+            # comme le vrai téléphone : une déconnexion libère caméra et micro
+            if authed and self.media_handler and hasattr(self.media_handler, "on_disconnect"):
+                await self.media_handler.on_disconnect()
