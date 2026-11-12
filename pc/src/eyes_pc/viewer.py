@@ -7,6 +7,7 @@ import contextlib
 import logging
 from collections.abc import Callable
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import av
 from aiortc import RTCConfiguration, RTCPeerConnection, RTCSessionDescription
@@ -16,6 +17,9 @@ from .discovery import PhoneInfo
 from .pairings import Pairing
 from .protocol import answer_msg, set_msg, start_msg, stop_msg
 from .signaling import SignalingError, SignalingSession
+
+if TYPE_CHECKING:
+    from .links import LinkPool
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +60,7 @@ class ViewerSession:
         on_frame: Callable[[av.VideoFrame], None],
         on_audio: Callable[[av.AudioFrame], None],
         on_state: Callable[[ViewerState, str | None], None],
+        links: "LinkPool | None" = None,
     ) -> None:
         self.phone = phone
         self._pairing = pairing
@@ -64,6 +69,8 @@ class ViewerSession:
         self._on_audio = on_audio
         self._on_state = on_state
         self._sig: SignalingSession | None = None
+        self._links = links
+        self._borrowed = False  # connexion empruntée aux connexions maintenues : à rendre, pas à fermer
         self._pc: RTCPeerConnection | None = None
         self._tasks: set[asyncio.Task] = set()
         self._stopping = False
@@ -89,12 +96,21 @@ class ViewerSession:
         """Se connecte et envoie la demande ; les erreurs passent par on_state, jamais en exception."""
         self._set_state(ViewerState.CONNECTING)
         try:
-            sig = await SignalingSession.connect(self.phone, self._pairing, self._ident)
-            if self._stopping:  # « Arrêter » pendant la connexion : ne rien démarrer
-                await sig.close()
-                return
-            self._sig = sig
-            await sig.send(start_msg(video, audio, camera))
+            sig = self._links.take(self.phone.phone_id) if self._links else None
+            if sig is not None:
+                self._sig, self._borrowed = sig, True
+                try:
+                    await sig.send(start_msg(video, audio, camera))
+                except SignalingError:  # la connexion maintenue venait de tomber : on en ouvre une
+                    self._release()
+                    sig = None
+            if sig is None:
+                sig = await SignalingSession.connect(self.phone, self._pairing, self._ident)
+                if self._stopping:  # « Arrêter » pendant la connexion : ne rien démarrer
+                    await sig.close()
+                    return
+                self._sig = sig
+                await sig.send(start_msg(video, audio, camera))
         except SignalingError as exc:
             await self._fail(ViewerState.ERROR, message_for(exc.reason))
             return
@@ -118,6 +134,12 @@ class ViewerSession:
         await self._teardown()
         self._set_state(ViewerState.STOPPED)
 
+    def _release(self) -> None:
+        """Rend la connexion empruntée (les connexions maintenues la ferment si elle est tombée)."""
+        if self._borrowed and self._sig is not None and self._links is not None:
+            self._links.give_back(self.phone.phone_id, self._sig)
+        self._sig, self._borrowed = None, False
+
     async def _teardown(self) -> None:
         current = asyncio.current_task()
         for t in list(self._tasks):
@@ -127,7 +149,9 @@ class ViewerSession:
             with contextlib.suppress(Exception):
                 await self._pc.close()
             self._pc = None
-        if self._sig:
+        if self._borrowed:
+            self._release()
+        elif self._sig:
             with contextlib.suppress(Exception):
                 await self._sig.close()
             self._sig = None
@@ -136,6 +160,9 @@ class ViewerSession:
         if self._stopping:
             return
         self._set_state(state, message)
+        if self._borrowed and self._sig is not None and self._sig.is_open:
+            with contextlib.suppress(Exception):
+                await self._sig.send(stop_msg())
         await self._teardown()
 
     async def _run(self) -> None:

@@ -15,6 +15,9 @@ from .pairings import Pairing, PairingStore
 from .protocol import ProtocolError, decode, encode, hello_msg, pair_msg
 
 CONNECT_TIMEOUT_S = 5.0
+# Vérification de la connexion : un ping toutes les 15 s, coupée sans réponse en 10 s.
+PING_INTERVAL_S = 15.0
+PING_TIMEOUT_S = 10.0
 # Un téléphone écran éteint répond lentement et perd parfois une tentative : on réessaie.
 CONNECT_ATTEMPTS = 3
 RETRY_DELAY_S = 1.0
@@ -40,7 +43,7 @@ async def _open(phone: PhoneInfo, expected_sha256: str | None) -> tuple[ClientCo
         try:
             ws = await asyncio.wait_for(
                 connect(f"wss://{phone.host}:{phone.port}/", ssl=_ssl_context(), open_timeout=None,
-                        max_size=2**20),
+                        max_size=2**20, ping_interval=PING_INTERVAL_S, ping_timeout=PING_TIMEOUT_S),
                 CONNECT_TIMEOUT_S,
             )
             break
@@ -105,6 +108,10 @@ class SignalingSession:
             await ws.close()
             raise SignalingError(reply.get("reason") or reply.get("code") or "bad_message")
         return cls(ws, reply["phoneName"])
+
+    @property
+    def is_open(self) -> bool:
+        return self._ws.state.name == "OPEN"
 
     async def send(self, msg: dict) -> None:
         try:

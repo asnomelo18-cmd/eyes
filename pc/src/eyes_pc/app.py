@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from .audio_out import AudioOutput, AudioRouter
 from .discovery import Discovery, PhoneInfo
+from .links import LinkPool, with_links
 from .pairings import PairingStore, default_store_path, pc_identity
 from .signaling import SignalingError, pair
 from .ui.main_window import MainWindow
@@ -32,14 +33,19 @@ class Controller:
         self.main = MainWindow()
         self.view = ViewWindow(self.router, self._make_session, run=self._run)
         self.discovery = Discovery(self.store, self._on_phones)
+        self.links = LinkPool(self.store, self.ident, on_change=self._refresh)
         self._tasks: set[asyncio.Task] = set()
         self.main.pair_requested.connect(self._ask_code)
         self.main.view_requested.connect(self._view)
         self.main.forget_requested.connect(self._forget)
 
     def _on_phones(self, phones: list[PhoneInfo]) -> None:
+        phones = with_links(phones, self.links.linked())
         self.main.set_phones(phones)
         self.view.refresh_targets(phones)
+
+    def _refresh(self) -> None:
+        self._on_phones(self.discovery.phones())
 
     def _run(self, coro) -> None:
         t = asyncio.ensure_future(coro)
@@ -47,7 +53,7 @@ class Controller:
         t.add_done_callback(self._tasks.discard)
 
     def _make_session(self, phone, pairing, on_frame, on_audio, on_state) -> ViewerSession:
-        return ViewerSession(phone, pairing, self.ident, on_frame, on_audio, on_state)
+        return ViewerSession(phone, pairing, self.ident, on_frame, on_audio, on_state, links=self.links)
 
     # --- jumelage
     def _ask_code(self, phone: PhoneInfo, error: str | None = None) -> None:
@@ -66,7 +72,7 @@ class Controller:
             self._ask_code(phone, exc.reason)
             return
         self.main.show_status(f"{phone.name} est jumelé.")
-        self.main.set_phones(self.discovery.phones())
+        self._refresh()
 
     # --- vue
     def _view(self, phone: PhoneInfo) -> None:
@@ -82,7 +88,8 @@ class Controller:
     def _forget(self, phone: PhoneInfo) -> None:
         self.view.remove_phone(phone.phone_id)
         self.store.remove(phone.phone_id)
-        self.main.set_phones(self.discovery.phones())
+        self._run(self.links.forget(phone.phone_id))
+        self._refresh()
 
     async def run(self) -> None:
         closed = asyncio.Event()
@@ -93,15 +100,17 @@ class Controller:
         except Exception:
             log.exception("sortie audio")
             self.main.show_status("Aucune sortie audio disponible : le son est désactivé.")
-        self.main.set_phones(self.discovery.phones())
+        self._refresh()
         self.main.show()
         await self.discovery.start()
+        await self.links.start()
         try:
             await closed.wait()
         finally:
             self.view.stop_all()
             self.view.close()
             await asyncio.sleep(0.5)  # laisse partir les messages `stop`
+            await self.links.stop()
             await self.discovery.stop()
             self.audio.stop()
 

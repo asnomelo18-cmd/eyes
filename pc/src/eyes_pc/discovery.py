@@ -30,7 +30,7 @@ class PhoneInfo:
     host: str
     port: int
     paired: bool
-    via: Literal["mdns", "last_ip", "none"]  # "none" : jumelé mais introuvable sur le Wi-Fi
+    via: Literal["mdns", "last_ip", "link", "none"]  # "link" : connexion maintenue ; "none" : introuvable
 
 
 def parse_service(info: ServiceInfo, paired_ids: Iterable[str] = frozenset()) -> PhoneInfo | None:
