@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+
+import numpy as np
 from collections.abc import Callable, Coroutine
 
 from PySide6.QtCore import Qt
@@ -34,7 +36,8 @@ def grid_shape(n: int) -> tuple[int, int]:
 
 
 def frame_to_qimage(frame) -> QImage:
-    rgb = frame.to_ndarray(format="rgb24")
+    # Les lignes peuvent être complétées par des octets de remplissage : on recopie d'un seul bloc.
+    rgb = np.ascontiguousarray(frame.to_ndarray(format="rgb24"))
     h, w, _ = rgb.shape
     return QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888).copy()
 

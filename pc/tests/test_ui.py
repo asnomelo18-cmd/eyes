@@ -188,3 +188,15 @@ def test_view_on_lost_tile_reconnects(view):
     sessions["ph1"][0].on_state(ViewerState.LOST, "Connexion perdue")
     w.add_phone(phone(1), pairing(1))
     assert len(sessions["ph1"]) == 2 and w.tile_count() == 1
+
+
+def test_frame_to_qimage_handles_padded_rows():
+    import av
+    import numpy as np
+    from eyes_pc.ui.view_window import frame_to_qimage
+    rgb = np.zeros((640, 360, 3), dtype=np.uint8)  # portrait 360x640 comme le téléphone
+    rgb[:, :, 0] = 200
+    f = av.VideoFrame.from_ndarray(rgb, format="rgb24").reformat(format="yuv420p")
+    img = frame_to_qimage(f)
+    assert (img.width(), img.height()) == (360, 640)
+    assert abs(img.pixelColor(180, 320).red() - 200) < 8

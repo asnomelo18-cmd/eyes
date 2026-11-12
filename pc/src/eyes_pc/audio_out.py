@@ -10,12 +10,19 @@ import numpy as np
 
 SAMPLE_RATE = 48000
 MAX_BUFFER_SAMPLES = SAMPLE_RATE // 2  # 500 ms : au-delà on jette le plus ancien
+# Réserve contre les irrégularités du Wi-Fi : on ne joue qu'avec 80 ms d'avance, et on
+# l'attend de nouveau après un trou. Au-delà de 200 ms d'avance, on revient à 80 ms
+# pour que le retard n'augmente pas (rafales après un trou, horloges légèrement différentes).
+PRIME_MS = 80
+PRIME_SAMPLES = SAMPLE_RATE * PRIME_MS // 1000
+HIGH_WATER_SAMPLES = SAMPLE_RATE * 200 // 1000
 
 
 class _PhoneBuffer:
     def __init__(self) -> None:
         self.resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
         self.data = np.zeros(0, dtype=np.float32)
+        self.playing = False
 
 
 class AudioRouter:
@@ -64,7 +71,15 @@ class AudioRouter:
         out = np.zeros(n_samples, dtype=np.float32)
         with self._lock:
             for phone_id, buf in self._buffers.items():
+                if not buf.playing and len(buf.data) >= PRIME_SAMPLES:
+                    buf.playing = True
+                if not buf.playing:
+                    continue
+                if len(buf.data) > HIGH_WATER_SAMPLES:
+                    buf.data = buf.data[-PRIME_SAMPLES:]
                 chunk, buf.data = buf.data[:n_samples], buf.data[n_samples:]
+                if len(chunk) < n_samples:
+                    buf.playing = False  # trou : on attend de nouveau la réserve
                 if self._mode == "all" or phone_id == self._selected:
                     out[: len(chunk)] += chunk
         return np.clip(out, -1.0, 1.0)
