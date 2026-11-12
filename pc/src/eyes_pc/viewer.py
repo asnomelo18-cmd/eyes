@@ -33,6 +33,7 @@ MESSAGES = {
     "camera_busy": "La caméra du téléphone est utilisée par une autre application",
     "permission_missing": "Autorisez la caméra et le micro dans Eyes sur le téléphone",
     "bad_message": "Le téléphone n'a pas compris la demande",
+    "media_error": "Le téléphone n'a pas pu démarrer la caméra ou le micro",
     "revoked": "Ce PC a été retiré sur le téléphone. Jumelez-le à nouveau.",
     "unknown": "Le téléphone ne reconnaît pas ce PC. Jumelez-le à nouveau.",
     "version": "Versions d'Eyes incompatibles : mettez à jour les deux applications",
@@ -88,10 +89,19 @@ class ViewerSession:
         """Se connecte et envoie la demande ; les erreurs passent par on_state, jamais en exception."""
         self._set_state(ViewerState.CONNECTING)
         try:
-            self._sig = await SignalingSession.connect(self.phone, self._pairing, self._ident)
-            await self._sig.send(start_msg(video, audio, camera))
+            sig = await SignalingSession.connect(self.phone, self._pairing, self._ident)
+            if self._stopping:  # « Arrêter » pendant la connexion : ne rien démarrer
+                await sig.close()
+                return
+            self._sig = sig
+            await sig.send(start_msg(video, audio, camera))
         except SignalingError as exc:
             await self._fail(ViewerState.ERROR, message_for(exc.reason))
+            return
+        if self._stopping:
+            with contextlib.suppress(Exception):
+                await self._sig.send(stop_msg())
+            await self._teardown()
             return
         self._spawn(self._run())
 

@@ -82,6 +82,9 @@ class ViewWindow(QWidget):
     # --- gestion des téléphones
     def add_phone(self, phone: PhoneInfo, pairing: Pairing) -> None:
         if phone.phone_id in self._tiles:
+            self._targets[phone.phone_id] = (phone, pairing)
+            if self._tiles[phone.phone_id].state in (ViewerState.LOST, ViewerState.ERROR):
+                self._reconnect(phone.phone_id)  # « Voir » sur une tuile perdue = reconnecter
             return
         tile = PhoneTile(phone.phone_id, phone.name)
         tile.clicked.connect(self._select)
@@ -99,6 +102,13 @@ class ViewWindow(QWidget):
             self.warnings_shown += 1
             self.warning_label.show()
         self._start_session(phone.phone_id)
+
+    def refresh_targets(self, phones: list[PhoneInfo]) -> None:
+        """Met à jour l'adresse des téléphones affichés (le téléphone a pu changer d'IP ou de port)."""
+        for p in phones:
+            if p.phone_id in self._targets and p.via != "none":
+                _, pairing = self._targets[p.phone_id]
+                self._targets[p.phone_id] = (p, pairing)
 
     def _start_session(self, phone_id: str) -> None:
         phone, pairing = self._targets[phone_id]

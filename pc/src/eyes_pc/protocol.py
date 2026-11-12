@@ -9,7 +9,7 @@ PROTOCOL_VERSION = 1
 
 CAMERAS = frozenset({"back", "front"})
 DENIED_REASONS = frozenset({"unknown", "revoked", "version", "bad_code", "code_expired", "not_pairing"})
-ERROR_CODES = frozenset({"busy", "camera_busy", "permission_missing", "bad_message"})
+ERROR_CODES = frozenset({"busy", "camera_busy", "permission_missing", "bad_message", "media_error"})
 
 
 class ProtocolError(Exception):

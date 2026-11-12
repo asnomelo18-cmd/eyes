@@ -28,6 +28,7 @@ class PhoneTile(QFrame):
         self.phone_id = phone_id
         self.camera = "back"
         self.selected = False
+        self.state: ViewerState = ViewerState.CONNECTING
         self._pixmap: QPixmap | None = None
         self.setFrameShape(QFrame.Box)
         self.setLineWidth(2)
@@ -86,6 +87,7 @@ class PhoneTile(QFrame):
         self.name_label.setText(self.name_label.text().removesuffix(" 🔊") + (" 🔊" if selected else ""))
 
     def set_state(self, state: ViewerState, message: str | None) -> None:
+        self.state = state
         self.status_label.setText(message or STATE_TEXT.get(state, ""))
         self.reconnect_btn.setVisible(state in (ViewerState.LOST, ViewerState.ERROR))
         if state is ViewerState.CONNECTING:

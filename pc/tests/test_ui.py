@@ -162,3 +162,29 @@ def test_main_window_emits_closed(qtbot):
     w.show()
     with qtbot.waitSignal(w.closed, timeout=1000):
         w.close()
+
+
+def test_offline_paired_phone_shows_unreachable(qtbot):
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.set_phones([PhoneInfo("ph1", "Tel", "", 0, True, "none")])
+    assert "Téléphone introuvable sur le Wi-Fi" in w.row_text("ph1")
+    assert not w.action_button("ph1").isEnabled()
+
+
+def test_reconnect_uses_fresh_address(view, qtbot):
+    w, _, sessions = view
+    w.add_phone(phone(1), pairing(1))
+    sessions["ph1"][0].on_state(ViewerState.LOST, "Connexion perdue")
+    moved = PhoneInfo("ph1", "Téléphone 1", "10.0.0.99", 5555, True, "mdns")
+    w.refresh_targets([moved])
+    qtbot.mouseClick(w.tile("ph1").reconnect_btn, Qt.LeftButton)
+    assert (sessions["ph1"][-1].phone.host, sessions["ph1"][-1].phone.port) == ("10.0.0.99", 5555)
+
+
+def test_view_on_lost_tile_reconnects(view):
+    w, _, sessions = view
+    w.add_phone(phone(1), pairing(1))
+    sessions["ph1"][0].on_state(ViewerState.LOST, "Connexion perdue")
+    w.add_phone(phone(1), pairing(1))
+    assert len(sessions["ph1"]) == 2 and w.tile_count() == 1

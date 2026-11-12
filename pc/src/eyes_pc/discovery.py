@@ -30,7 +30,7 @@ class PhoneInfo:
     host: str
     port: int
     paired: bool
-    via: Literal["mdns", "last_ip"]
+    via: Literal["mdns", "last_ip", "none"]  # "none" : jumelé mais introuvable sur le Wi-Fi
 
 
 def parse_service(info: ServiceInfo, paired_ids: Iterable[str] = frozenset()) -> PhoneInfo | None:
@@ -76,8 +76,12 @@ class Discovery:
         self._started_at = 0.0
 
     def phones(self) -> list[PhoneInfo]:
-        paired = set(self._store.load())
+        pairings = self._store.load()
+        paired = set(pairings)
         by_id: dict[str, PhoneInfo] = {}
+        for pr in pairings.values():  # toujours listés, même introuvables
+            by_id[pr.phone_id] = PhoneInfo(pr.phone_id, pr.phone_name, pr.last_host or "", pr.last_port or 0,
+                                           True, "none")
         for p in self._fallback.values():
             by_id[p.phone_id] = p
         for p in self._mdns.values():

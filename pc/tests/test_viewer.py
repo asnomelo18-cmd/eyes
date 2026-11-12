@@ -111,3 +111,22 @@ async def test_revoked_gives_error(paired_fake_phone, pc_ident):
     await v.start()
     await rec.wait_for(lambda: rec.states and rec.states[-1][0] is ViewerState.ERROR)
     assert "retiré" in rec.states[-1][1]
+
+
+async def test_stop_during_connecting_does_not_stream(paired_fake_phone, pc_ident, media):
+    phone, _ = paired_fake_phone
+    rec = Recorder()
+    v = _viewer(paired_fake_phone, pc_ident, rec)
+    starting = asyncio.ensure_future(v.start())
+    await asyncio.sleep(0)  # la connexion est en cours
+    await v.stop()
+    await starting
+    await asyncio.sleep(1.0)
+    assert rec.frames == 0
+    assert media.pc is None or media.stopped.is_set()
+    assert rec.states[-1][0] is ViewerState.STOPPED
+
+
+def test_media_error_message():
+    from eyes_pc.viewer import message_for
+    assert message_for("media_error") == "Le téléphone n'a pas pu démarrer la caméra ou le micro"

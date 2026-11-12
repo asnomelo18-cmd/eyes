@@ -66,3 +66,7 @@ def test_invalid_messages_raise(raw):
 def test_set_msg_requires_a_change():
     with pytest.raises(ProtocolError):
         set_msg()
+
+
+def test_media_error_code_decodes():
+    assert decode('{"type":"error","code":"media_error"}')["code"] == "media_error"

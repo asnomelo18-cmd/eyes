@@ -91,3 +91,14 @@ async def test_discovery_finds_announced_phone(tmp_path):
         await azc.async_unregister_service(info)
         await azc.async_close()
     assert any(p.name == "Test Eyes" and p.port == 40999 for p in seen)
+
+
+def test_unreachable_paired_phone_is_listed_offline(tmp_path):
+    from eyes_pc.discovery import Discovery
+    from eyes_pc.pairings import PairingStore
+
+    store = PairingStore(tmp_path / "p.json")
+    store.save(Pairing("ph9", "Tel absent", "tok", "00", "10.0.0.9", 4000))
+    d = Discovery(store, lambda phones: None)
+    phones = d.phones()
+    assert [(p.phone_id, p.paired, p.via) for p in phones] == [("ph9", True, "none")]

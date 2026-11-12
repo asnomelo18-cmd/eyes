@@ -31,11 +31,15 @@ class Controller:
         self.audio = AudioOutput(self.router)
         self.main = MainWindow()
         self.view = ViewWindow(self.router, self._make_session, run=self._run)
-        self.discovery = Discovery(self.store, self.main.set_phones)
+        self.discovery = Discovery(self.store, self._on_phones)
         self._tasks: set[asyncio.Task] = set()
         self.main.pair_requested.connect(self._ask_code)
         self.main.view_requested.connect(self._view)
         self.main.forget_requested.connect(self._forget)
+
+    def _on_phones(self, phones: list[PhoneInfo]) -> None:
+        self.main.set_phones(phones)
+        self.view.refresh_targets(phones)
 
     def _run(self, coro) -> None:
         t = asyncio.ensure_future(coro)
@@ -89,7 +93,7 @@ class Controller:
         except Exception:
             log.exception("sortie audio")
             self.main.show_status("Aucune sortie audio disponible : le son est désactivé.")
-        self.main.set_phones([])
+        self.main.set_phones(self.discovery.phones())
         self.main.show()
         await self.discovery.start()
         try:

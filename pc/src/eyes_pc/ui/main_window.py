@@ -30,6 +30,7 @@ class MainWindow(QWidget):
         self.status_label.setStyleSheet("color: #a4262c;")
         self._rows = QVBoxLayout()
         self._buttons: dict[str, QPushButton] = {}
+        self._labels: dict[str, QLabel] = {}
         self._row_widgets: list[QWidget] = []
         layout = QVBoxLayout(self)
         layout.addWidget(title)
@@ -41,6 +42,9 @@ class MainWindow(QWidget):
     def closeEvent(self, event) -> None:  # noqa: N802
         super().closeEvent(event)
         self.closed.emit()
+
+    def row_text(self, phone_id: str) -> str:
+        return self._labels[phone_id].text()
 
     def action_button(self, phone_id: str) -> QPushButton:
         return self._buttons[phone_id]
@@ -54,12 +58,19 @@ class MainWindow(QWidget):
             w.deleteLater()
         self._row_widgets.clear()
         self._buttons.clear()
+        self._labels.clear()
         self.help_label.setVisible(not phones)
         for phone in phones:
             row = QWidget()
             h = QHBoxLayout(row)
             h.setContentsMargins(0, 2, 0, 2)
-            label = QLabel(f"{phone.name}  —  {'Jumelé' if phone.paired else 'Non jumelé'}")
+            if phone.via == "none":
+                status = "Téléphone introuvable sur le Wi-Fi"
+            else:
+                status = "Jumelé" if phone.paired else "Non jumelé"
+            label = QLabel(f"{phone.name}  —  {status}")
+            label.setWordWrap(True)
+            self._labels[phone.phone_id] = label
             h.addWidget(label, 1)
             if phone.paired:
                 forget = QPushButton("Oublier")
@@ -68,6 +79,7 @@ class MainWindow(QWidget):
                 forget.clicked.connect(lambda _=False, p=phone: self.forget_requested.emit(p))
                 h.addWidget(forget)
                 btn = QPushButton("Voir")
+                btn.setEnabled(phone.via != "none")
                 btn.clicked.connect(lambda _=False, p=phone: self.view_requested.emit(p))
             else:
                 btn = QPushButton("Jumeler")
