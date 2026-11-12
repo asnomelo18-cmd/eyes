@@ -39,7 +39,7 @@ class WebRtcMediaTest {
     }
 
     @Test
-    fun startProducesOfferWithVideoAndAudio() = runBlocking {
+    fun startProducesOfferWithVideoAndAudio(): Unit = runBlocking {
         val sdp = media.start(Start(video = true, audio = true, camera = Camera.back))
         assertTrue("m=video", sdp.contains("m=video"))
         assertTrue("m=audio", sdp.contains("m=audio"))
@@ -49,7 +49,7 @@ class WebRtcMediaTest {
     }
 
     @Test
-    fun switchCameraDoesNotRenegotiate() = runBlocking {
+    fun switchCameraDoesNotRenegotiate(): Unit = runBlocking {
         media.start(Start(true, true, Camera.back))
         assertTrue(waitFrames(3))
         media.set(SetMsg(camera = Camera.front))
@@ -59,7 +59,7 @@ class WebRtcMediaTest {
     }
 
     @Test
-    fun setVideoFalseDisablesTrack() = runBlocking {
+    fun setVideoFalseDisablesTrack(): Unit = runBlocking {
         media.start(Start(true, true, Camera.back))
         media.set(SetMsg(video = false, audio = false))
         assertFalse(media.videoEnabled)
@@ -69,7 +69,7 @@ class WebRtcMediaTest {
     }
 
     @Test
-    fun stopReleasesCamera() = runBlocking {
+    fun stopReleasesCamera(): Unit = runBlocking {
         media.start(Start(true, true, Camera.back))
         assertTrue(waitFrames(3))
         media.stop()
@@ -87,7 +87,7 @@ class WebRtcMediaTest {
     }
 
     @Test
-    fun disposeReleasesCameraAndCanBeCalledAfterStart() = runBlocking {
+    fun disposeReleasesCameraAndCanBeCalledAfterStart(): Unit = runBlocking {
         val m = WebRtcMedia(context)
         m.start(Start(true, true, Camera.back))
         m.dispose()
