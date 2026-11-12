@@ -15,6 +15,9 @@ from .pairings import Pairing, PairingStore
 from .protocol import ProtocolError, decode, encode, hello_msg, pair_msg
 
 CONNECT_TIMEOUT_S = 5.0
+# Un téléphone écran éteint répond lentement et perd parfois une tentative : on réessaie.
+CONNECT_ATTEMPTS = 3
+RETRY_DELAY_S = 1.0
 REPLY_TIMEOUT_S = 10.0
 
 
@@ -33,14 +36,18 @@ def _ssl_context() -> ssl.SSLContext:
 
 
 async def _open(phone: PhoneInfo, expected_sha256: str | None) -> tuple[ClientConnection, str]:
-    try:
-        ws = await asyncio.wait_for(
-            connect(f"wss://{phone.host}:{phone.port}/", ssl=_ssl_context(), open_timeout=None,
-                    max_size=2**20),
-            CONNECT_TIMEOUT_S,
-        )
-    except (OSError, asyncio.TimeoutError, InvalidHandshake, ssl.SSLError) as exc:
-        raise SignalingError("unreachable") from exc
+    for attempt in range(1, CONNECT_ATTEMPTS + 1):
+        try:
+            ws = await asyncio.wait_for(
+                connect(f"wss://{phone.host}:{phone.port}/", ssl=_ssl_context(), open_timeout=None,
+                        max_size=2**20),
+                CONNECT_TIMEOUT_S,
+            )
+            break
+        except (OSError, asyncio.TimeoutError, InvalidHandshake, ssl.SSLError) as exc:
+            if attempt == CONNECT_ATTEMPTS:
+                raise SignalingError("unreachable") from exc
+            await asyncio.sleep(RETRY_DELAY_S)
     der = ws.transport.get_extra_info("ssl_object").getpeercert(binary_form=True)
     fingerprint = hashlib.sha256(der).hexdigest()
     if expected_sha256 is not None and not hmac.compare_digest(fingerprint, expected_sha256):

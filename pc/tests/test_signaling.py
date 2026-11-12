@@ -52,3 +52,33 @@ async def test_unreachable_phone(store, pc_ident):
     with pytest.raises(SignalingError) as e:
         await pair(PhoneInfo("x", "x", "127.0.0.1", 1, False, "mdns"), "123456", store, pc_ident)
     assert e.value.reason == "unreachable"
+
+
+async def test_connect_retries_when_sleeping_phone_drops_first_attempt(paired_fake_phone, pc_ident, monkeypatch):
+    # Un téléphone en veille perd parfois la première tentative : on réessaie avant d'abandonner.
+    import eyes_pc.signaling as sig
+    phone, pairing = paired_fake_phone
+    real_connect, calls = sig.connect, []
+
+    def flaky_connect(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("paquet perdu")
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sig, "connect", flaky_connect)
+    monkeypatch.setattr(sig, "RETRY_DELAY_S", 0.01)
+    s = await SignalingSession.connect(phone.info, pairing, pc_ident)
+    await s.close()
+    assert len(calls) == 2
+
+
+async def test_unreachable_after_all_attempts(store, pc_ident, monkeypatch):
+    import eyes_pc.signaling as sig
+    monkeypatch.setattr(sig, "RETRY_DELAY_S", 0.01)
+    calls = []
+    real_connect = sig.connect
+    monkeypatch.setattr(sig, "connect", lambda *a, **k: (calls.append(1), real_connect(*a, **k))[1])
+    with pytest.raises(SignalingError) as e:
+        await pair(PhoneInfo("x", "x", "127.0.0.1", 1, False, "mdns"), "123456", store, pc_ident)
+    assert e.value.reason == "unreachable" and len(calls) == sig.CONNECT_ATTEMPTS
