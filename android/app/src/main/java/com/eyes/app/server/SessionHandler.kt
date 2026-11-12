@@ -68,8 +68,9 @@ class SessionHandler(
     private val onRevoked: suspend (String) -> Unit = { revokedId ->
         mutex.withLock {
             if (revokedId == pc?.pcId && !closed) {
-                releaseLocked()
+                // Prévenir d'abord : sinon le PC voit la vidéo couper et croit à une coupure réseau.
                 sendSafely(Denied(DeniedReason.revoked))
+                releaseLocked()
                 closeLocked()
             }
         }

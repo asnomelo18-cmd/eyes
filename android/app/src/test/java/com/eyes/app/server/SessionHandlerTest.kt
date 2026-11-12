@@ -55,10 +55,11 @@ class SessionHandlerTest {
     inner class Conn {
         val sent = mutableListOf<Msg>()
         var closed = false
+        var stopsWhenDenied = -1
         val sharing = mutableListOf<String?>()
         val handler = SessionHandler(
             pairing, media, active, phoneId = "ph1", phoneName = "Tel",
-            send = { sent += it }, close = { closed = true },
+            send = { sent += it; if (it is Denied) stopsWhenDenied = media.stops }, close = { closed = true },
             listener = object : SessionListener {
                 override fun onSharingStarted(pcName: String) { sharing += pcName }
                 override fun onSharingStopped() { sharing += null }
@@ -181,6 +182,16 @@ class SessionHandlerTest {
         assertEquals(1, media.stops)
         assertTrue(c.closed)
         assertEquals(null, active.get())
+    }
+
+    @Test
+    fun revokeTellsThePcBeforeStoppingTheStream() = runTest {
+        // Sinon le PC voit la vidéo couper avant le refus et affiche « Connexion perdue ».
+        val t = pairPc("pc1")
+        val c = Conn(); hello(c, "pc1", t); c.msg(startRaw)
+        pairing.revoke("pc1")
+        assertEquals(0, c.stopsWhenDenied)
+        assertEquals(1, media.stops)
     }
 
     @Test
