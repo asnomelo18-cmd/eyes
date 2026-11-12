@@ -33,7 +33,7 @@ class PairingManager(
     }
 
     private val mutex = Mutex()
-    private val listeners = CopyOnWriteArrayList<(String) -> Unit>()
+    private val listeners = CopyOnWriteArrayList<suspend (String) -> Unit>()
     private val lock = Any()
 
     private var code: String? = null
@@ -95,11 +95,11 @@ class PairingManager(
             store.remove(pcId)
             store.setRevoked(pcId, true)
         }
-        listeners.forEach { it(pcId) }
+        for (l in listeners) l(pcId)
     }
 
-    fun addRevocationListener(l: (String) -> Unit) { listeners += l }
-    fun removeRevocationListener(l: (String) -> Unit) { listeners -= l }
+    fun addRevocationListener(l: suspend (String) -> Unit) { listeners += l }
+    fun removeRevocationListener(l: suspend (String) -> Unit) { listeners -= l }
 
     private fun hash(token: String): String =
         MessageDigest.getInstance("SHA-256").digest(token.toByteArray()).joinToString("") { "%02x".format(it) }
