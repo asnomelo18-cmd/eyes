@@ -2,6 +2,12 @@
 
 Date : 2026-11-12. PC Windows 10, téléphone HUAWEI MAR-LX1A (Android 10), Wi-Fi partagé du PC (192.168.137.0/24).
 
+## Bilan
+
+Critères 1 à 8 validés sur un téléphone Huawei (Android 10). Critères 9 (deux téléphones en même
+temps) et 10 (deuxième marque) **en attente d'un second téléphone Android**. Les 5 points
+d'attention de la relecture sont couverts.
+
 ## Tests automatiques
 
 | Ensemble | Résultat |
@@ -16,7 +22,7 @@ Date : 2026-11-12. PC Windows 10, téléphone HUAWEI MAR-LX1A (Android 10), Wi-F
 |---|---|---|
 | 1 | Téléphone visible sur le PC en < 5 s | **OK** |
 | 2 | Jumelage par code, puis « Voir » sans re-jumeler après redémarrage des deux apps | **OK** (app PC fermée, app téléphone fermée et « Prêt à partager » relancé, puis « Voir » sans code) |
-| 3 | Vidéo + son en direct, latence < 500 ms, 30 min sans coupure | vidéo et son reçus après correction ; **latence 0,2 s** (chronomètre filmé : 52,922 à l'écran contre 52,722 dans la vue) ; 30 min à vérifier |
+| 3 | Vidéo + son en direct, latence < 500 ms, 30 min sans coupure | **OK** : latence 0,2 s (chronomètre filmé : 52,922 à l'écran contre 52,722 dans la vue) ; 30 min en direct sans coupure |
 | 4 | Caméra / micro / avant-arrière pendant la vue | **OK** (image, son, coupure/reprise caméra et micro, bascule avant/arrière) |
 | 5 | Écran du téléphone éteint : « Voir » fonctionne | **OK** sur Huawei : sans câble, sur batterie, écran éteint 5 min, image reçue (grâce à la connexion maintenue, voir problème 4). 30 min à confirmer |
 | 6 | « Retirer » sur le téléphone → le PC ne peut plus voir | **OK** après correction : retrait pendant la vue → flux arrêté, message « Ce PC a été retiré sur le téléphone. Jumelez-le à nouveau. » (point d'attention 5). Détail : la dernière image reste affichée derrière le message |
