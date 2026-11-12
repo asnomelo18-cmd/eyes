@@ -38,7 +38,7 @@ class ShareService : Service() {
     private var media: WebRtcMedia? = null
     private var keepAwake: KeepAwake? = null
     private var nsd: NsdAdvertiser? = null
-    private val activeViewer = AtomicReference<String?>(null)
+    private val activeViewer = AtomicReference<SessionHandler?>(null)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -81,7 +81,9 @@ class ShareService : Service() {
             SessionHandler(app.pairing, m, activeViewer, app.phoneId, app.phoneName, send, close, listener)
         }
         try {
-            val port = s.start()
+            val prefs = getSharedPreferences("eyes", Context.MODE_PRIVATE)
+            val port = s.start(preferredPort = prefs.getInt("lastPort", 0))
+            prefs.edit().putInt("lastPort", port).apply()
             server = s
             nsd = NsdAdvertiser(this).also { it.register(app.phoneName, app.phoneId, port) }
             app.mutableState.value = ShareState.Waiting
@@ -94,7 +96,7 @@ class ShareService : Service() {
     override fun onDestroy() {
         nsd?.unregister()
         server?.stop()
-        media?.stop()
+        media?.dispose()
         keepAwake?.release()
         server = null; media = null; nsd = null; keepAwake = null
         eyes.mutableState.value = ShareState.Off

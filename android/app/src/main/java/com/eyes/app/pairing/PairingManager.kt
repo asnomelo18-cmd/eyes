@@ -1,7 +1,9 @@
 package com.eyes.app.pairing
 
 import com.eyes.app.protocol.DeniedReason
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -95,7 +97,8 @@ class PairingManager(
             store.remove(pcId)
             store.setRevoked(pcId, true)
         }
-        for (l in listeners) l(pcId)
+        // Le partage doit s'arrêter même si l'écran qui a demandé le retrait disparaît.
+        withContext(NonCancellable) { for (l in listeners) l(pcId) }
     }
 
     fun addRevocationListener(l: suspend (String) -> Unit) { listeners += l }

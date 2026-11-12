@@ -33,8 +33,16 @@ class FakeMedia : MediaController {
         starts += s
         return "offre-sdp"
     }
-    override suspend fun applyAnswer(sdp: String) { answers += sdp }
-    override fun set(m: SetMsg) { sets += m }
+    var answerFails = false
+    var setFails = false
+    override suspend fun applyAnswer(sdp: String) {
+        if (answerFails) throw IllegalStateException("SDP invalide")
+        answers += sdp
+    }
+    override fun set(m: SetMsg) {
+        if (setFails) throw IllegalStateException("échec")
+        sets += m
+    }
     override fun stop() { stops++ }
 }
 
@@ -42,7 +50,7 @@ class SessionHandlerTest {
     private val store = InMemoryPairedPcStore()
     private val pairing = PairingManager(store)
     private val media = FakeMedia()
-    private val active = AtomicReference<String?>(null)
+    private val active = AtomicReference<SessionHandler?>(null)
 
     inner class Conn {
         val sent = mutableListOf<Msg>()
@@ -225,5 +233,62 @@ class SessionHandlerTest {
         val t = pairPc("pc1")
         val c = Conn(); hello(c, "pc1", t); c.msg(startRaw)
         assertEquals("""{"type":"offer","sdp":"offre-sdp"}""", Codec.encode(c.sent.last()))
+    }
+
+    // --- relecture finale
+
+    @Test
+    fun reconnectFromSamePcTakesOverAndOldCloseDoesNotStopNewStream() = runTest {
+        val t = pairPc("pc1")
+        val old = Conn(); hello(old, "pc1", t); old.msg(startRaw)
+        val fresh = Conn(); hello(fresh, "pc1", t); fresh.msg(startRaw)
+        assertEquals(Offer("offre-sdp"), fresh.sent.last())
+        assertTrue("l'ancienne connexion est fermée", old.closed)
+        old.handler.onClosed() // la vieille connexion finit par se fermer
+        assertEquals("le nouveau flux n'est pas coupé", 0, media.stops)
+        assertTrue(active.get() === fresh.handler)
+        assertEquals(listOf<String?>("PC pc1"), old.sharing)
+        // un autre PC reste refusé
+        val t2 = pairPc("pc2")
+        val other = Conn(); hello(other, "pc2", t2); other.msg(startRaw)
+        assertEquals(ErrorMsg(ErrorCode.busy), other.sent.last())
+    }
+
+    @Test
+    fun unexpectedMediaErrorIsReportedNotThrown() = runTest {
+        val t = pairPc("pc1")
+        media.failWith = IllegalStateException("PeerConnection impossible")
+        val c = Conn(); hello(c, "pc1", t); c.msg(startRaw)
+        assertEquals(ErrorMsg(ErrorCode.media_error), c.sent.last())
+        assertEquals(null, active.get())
+    }
+
+    @Test
+    fun badAnswerIsReportedAndReleases() = runTest {
+        val t = pairPc("pc1")
+        media.answerFails = true
+        val c = Conn(); hello(c, "pc1", t); c.msg(startRaw)
+        c.msg("""{"type":"answer","sdp":"n'importe quoi"}""")
+        assertEquals(ErrorMsg(ErrorCode.media_error), c.sent.last())
+        assertEquals(1, media.stops)
+        assertEquals(null, active.get())
+    }
+
+    @Test
+    fun failingSetDoesNotThrow() = runTest {
+        val t = pairPc("pc1")
+        media.setFails = true
+        val c = Conn(); hello(c, "pc1", t); c.msg(startRaw)
+        c.msg("""{"type":"set","video":false}""")
+        assertFalse(c.closed)
+    }
+
+    @Test
+    fun failingSendDoesNotThrow() = runTest {
+        val t = pairPc("pc1")
+        val h = SessionHandler(pairing, media, active, "ph1", "Tel",
+            send = { throw IllegalStateException("socket fermée") }, close = {})
+        h.onMessage("""{"type":"hello","pcId":"pc1","token":"$t","v":1}""")
+        h.onMessage(startRaw)
     }
 }

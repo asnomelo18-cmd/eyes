@@ -19,7 +19,7 @@ enum class Camera { back, front }
 enum class DeniedReason { unknown, revoked, version, bad_code, code_expired, not_pairing }
 
 @Serializable
-enum class ErrorCode { busy, camera_busy, permission_missing, bad_message }
+enum class ErrorCode { busy, camera_busy, permission_missing, bad_message, media_error }
 
 @Serializable
 sealed interface Msg

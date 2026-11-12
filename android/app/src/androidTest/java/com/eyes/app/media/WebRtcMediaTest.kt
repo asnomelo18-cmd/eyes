@@ -85,4 +85,18 @@ class WebRtcMediaTest {
         assertTrue("la caméra est libérée", opened.get(5, TimeUnit.SECONDS))
         thread.quitSafely()
     }
+
+    @Test
+    fun disposeReleasesCameraAndCanBeCalledAfterStart() = runBlocking {
+        val m = WebRtcMedia(context)
+        m.start(Start(true, true, Camera.back))
+        m.dispose()
+        // une nouvelle instance peut reprendre la caméra
+        val again = WebRtcMedia(context)
+        try {
+            again.start(Start(true, true, Camera.back))
+        } finally {
+            again.dispose()
+        }
+    }
 }

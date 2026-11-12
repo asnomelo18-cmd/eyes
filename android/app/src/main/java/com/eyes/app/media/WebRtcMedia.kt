@@ -52,8 +52,11 @@ class WebRtcMedia(private val context: Context) : MediaController {
 
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "eyes-media") }
     private val dispatcher = executor.asCoroutineDispatcher()
-    private val eglBase: EglBase by lazy { EglBase.create() }
-    private val factory: PeerConnectionFactory by lazy { createFactory() }
+    private var eglCreated = false
+    private var factoryCreated = false
+    private var audioModule: JavaAudioDeviceModule? = null
+    private val eglBase: EglBase by lazy { eglCreated = true; EglBase.create() }
+    private val factory: PeerConnectionFactory by lazy { factoryCreated = true; createFactory() }
 
     private var pc: PeerConnection? = null
     private var capturer: CameraVideoCapturer? = null
@@ -81,6 +84,7 @@ class WebRtcMedia(private val context: Context) : MediaController {
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()
+        audioModule = adm as JavaAudioDeviceModule
         return PeerConnectionFactory.builder()
             .setAudioDeviceModule(adm)
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
@@ -183,10 +187,26 @@ class WebRtcMedia(private val context: Context) : MediaController {
         executor.submit { releaseLocked() }.get()
     }
 
+    /** Libère tout, y compris la fabrique WebRTC, le module audio, EGL et le fil d'exécution. */
+    fun dispose() {
+        runCatching {
+            executor.submit {
+                releaseLocked()
+                if (factoryCreated) {
+                    factory.dispose()
+                    audioModule?.release()
+                }
+                if (eglCreated) eglBase.release()
+            }.get()
+        }
+        executor.shutdown()
+    }
+
     private fun releaseLocked() {
         runCatching { capturer?.stopCapture() }
         capturer?.dispose(); capturer = null
         pc?.dispose(); pc = null
+        videoTrack?.dispose(); audioTrack?.dispose()
         videoTrack = null; audioTrack = null
         videoSource?.dispose(); videoSource = null
         audioSource?.dispose(); audioSource = null

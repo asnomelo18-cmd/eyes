@@ -1,6 +1,7 @@
 package com.eyes.app.pairing
 
 import com.eyes.app.protocol.DeniedReason
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -92,5 +93,17 @@ class PairingManagerTest {
         pm.revoke("pc1")
         val t = token(pm.tryPair(pm.openPairing(), "pc1", "Bureau"))
         assertTrue(pm.authenticate("pc1", t) is AuthResult.Ok)
+    }
+
+    @Test
+    fun revocationListenersRunEvenIfCallerIsCancelled() = runTest {
+        pm.tryPair(pm.openPairing(), "pc1", "Bureau")
+        var done = false
+        pm.addRevocationListener { kotlinx.coroutines.delay(100); done = true }
+        val job = launch { pm.revoke("pc1") }
+        testScheduler.advanceTimeBy(10)
+        job.cancel()
+        testScheduler.advanceUntilIdle()
+        assertTrue("l'arrêt du partage a eu lieu malgré l'annulation", done)
     }
 }

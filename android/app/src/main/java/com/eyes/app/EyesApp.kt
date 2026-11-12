@@ -6,6 +6,9 @@ import android.os.Build
 import android.provider.Settings
 import com.eyes.app.pairing.DataStorePairedPcStore
 import com.eyes.app.pairing.PairingManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
@@ -22,6 +25,8 @@ class EyesApp : Application() {
     val pairing by lazy { PairingManager(store) }
     internal val mutableState = MutableStateFlow<ShareState>(ShareState.Off)
     val state: StateFlow<ShareState> get() = mutableState
+    /** Pour les actions qui doivent aller au bout même si l'écran change (ex. retirer un PC). */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val phoneId: String by lazy {
         val prefs = getSharedPreferences("eyes", Context.MODE_PRIVATE)

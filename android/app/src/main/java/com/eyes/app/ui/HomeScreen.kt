@@ -21,7 +21,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +41,6 @@ fun HomeScreen(
     val app = LocalContext.current.eyes
     val state by app.state.collectAsState()
     val pcs by app.store.changes.collectAsState(initial = emptyList())
-    val scope = rememberCoroutineScope()
     var toRemove by remember { mutableStateOf<PairedPc?>(null) }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -86,7 +84,7 @@ fun HomeScreen(
             text = { Text("Ce PC ne pourra plus voir la caméra ni entendre le micro.") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { app.pairing.revoke(pc.pcId) }
+                    app.appScope.launch { app.pairing.revoke(pc.pcId) }
                     toRemove = null
                 }) { Text("Retirer") }
             },

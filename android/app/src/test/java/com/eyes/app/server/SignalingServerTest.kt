@@ -58,7 +58,7 @@ class SignalingServerTest {
         val identity = TlsIdentity(tmp.newFolder())
         val pairing = PairingManager(InMemoryPairedPcStore())
         val token = (pairing.tryPair(pairing.openPairing(), "pc1", "Bureau") as PairResult.Success).token
-        val active = AtomicReference<String?>(null)
+        val active = AtomicReference<SessionHandler?>(null)
         val s = SignalingServer(identity) { send, close ->
             SessionHandler(pairing, FakeMedia(), active, "ph1", "Tel", send, close)
         }
@@ -85,7 +85,7 @@ class SignalingServerTest {
         val identity = TlsIdentity(tmp.newFolder())
         val pairing = PairingManager(InMemoryPairedPcStore())
         val s = SignalingServer(identity) { send, close ->
-            SessionHandler(pairing, FakeMedia(), AtomicReference(null), "ph1", "Tel", send, close)
+            SessionHandler(pairing, FakeMedia(), AtomicReference<SessionHandler?>(null), "ph1", "Tel", send, close)
         }
         server = s
         val port = s.start()
@@ -95,5 +95,34 @@ class SignalingServerTest {
         c.send("""{"type":"hello","pcId":"x","token":"y","v":1}""")
         assertEquals("""{"type":"denied","reason":"unknown"}""", c.inbox.poll(5, TimeUnit.SECONDS))
         check(c.closed.poll(5, TimeUnit.SECONDS) != null) { "la connexion aurait dû être fermée" }
+    }
+
+    @Test
+    fun reusesPreferredPortWhenFree() {
+        val identity = TlsIdentity(tmp.newFolder())
+        val pairing = PairingManager(InMemoryPairedPcStore())
+        val factory: HandlerFactory = { send, close ->
+            SessionHandler(pairing, FakeMedia(), AtomicReference<SessionHandler?>(null), "ph1", "Tel", send, close)
+        }
+        val first = SignalingServer(identity, factory)
+        val port = first.start()
+        first.stop()
+        val second = SignalingServer(identity, factory)
+        server = second
+        assertEquals("même port après redémarrage", port, second.start(preferredPort = port))
+    }
+
+    @Test
+    fun fallsBackWhenPreferredPortTaken() {
+        val identity = TlsIdentity(tmp.newFolder())
+        val pairing = PairingManager(InMemoryPairedPcStore())
+        java.net.ServerSocket(0).use { taken ->
+            val s = SignalingServer(identity) { send, close ->
+                SessionHandler(pairing, FakeMedia(), AtomicReference<SessionHandler?>(null), "ph1", "Tel", send, close)
+            }
+            server = s
+            val port = s.start(preferredPort = taken.localPort)
+            org.junit.Assert.assertNotEquals(taken.localPort, port)
+        }
     }
 }
