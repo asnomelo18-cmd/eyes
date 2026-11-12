@@ -25,6 +25,16 @@ Date : 2026-11-12. PC Windows 10, téléphone HUAWEI MAR-LX1A (Android 10), Wi-F
 | 9 | Deux téléphones en même temps | à vérifier (second téléphone nécessaire) |
 | 10 | Critère 5 sur deux marques | à vérifier (second téléphone nécessaire) |
 
+## Points d'attention de la relecture
+
+| # | Point | Résultat |
+|---|---|---|
+| 1 | Le téléphone change d'adresse IP | **OK** : passé de 192.168.137.5 à 192.168.1.49, retrouvé par l'annonce Wi-Fi |
+| 2 | Le Wi-Fi coupe en pleine vue | **OK** : Wi-Fi du téléphone coupé → « Connexion perdue » + « Reconnecter » ; Wi-Fi rallumé → « Reconnecter » ramène l'image |
+| 3 | Caméra déjà utilisée par une autre app | **OK** au démarrage : « La caméra du téléphone est utilisée par une autre application », puis « Reconnecter » une fois l'appareil photo fermé |
+| 4 | Message invalide ou type inconnu | couvert par les tests automatiques (PC et Android) |
+| 5 | PC retiré pendant la vue | **OK** (voir critère 6) |
+
 ## Problèmes trouvés sur le vrai téléphone et corrigés
 
 1. **Image noire.** Les images du téléphone (360×640) ont des lignes complétées par des octets de remplissage ; la conversion pour l'affichage échouait à chaque image (`BufferError`). Corrigé : recopie d'un seul bloc avant conversion. Test : `test_frame_to_qimage_handles_padded_rows`.
